@@ -1,40 +1,54 @@
 /**
- * One card of the connection status dashboard.
+ * One row of the connection status page.
  *
  * It shows the state of a single connection with a coloured badge:
- *   connected    -> green  CONNECTED
- *   disconnected -> red    DISCONNECTED
- *   checking     -> blue   CHECKING
- *   unknown      -> amber  UNKNOWN  (the state could not be determined)
+ *   working     -> green  WORKING
+ *   failed      -> red    NOT WORKING
+ *   checking    -> blue   CHECKING
+ *   unknown     -> amber  UNKNOWN  (the state could not be determined)
  *
- * @param {string} title       name of the connection, e.g. "Spring Boot backend"
- * @param {string} description short explanation of what is checked
- * @param {'connected' | 'disconnected' | 'checking' | 'unknown'} state
+ * @param {string} title       name of the connection
+ * @param {'working' | 'failed' | 'checking' | 'unknown'} state
  * @param {string} [badge]     own badge text, defaults to the state name
- * @param {import('react').ReactNode} [children] optional detail rows
+ * @param {string} [description] short explanation of what is checked
+ * @param {import('react').ReactNode} [action] the button of this row
+ * @param {import('react').ReactNode} [children] detail rows
  *                                             (<div><dt>..</dt><dd>..</dd></div>)
  */
-export default function ConnectionCard({ title, description, state, badge, children }) {
-  const defaultBadges = {
-    connected: 'CONNECTED',
-    disconnected: 'DISCONNECTED',
-    checking: 'CHECKING',
-    unknown: 'UNKNOWN',
-  };
+const BADGE_TEXT = {
+  working: 'WORKING',
+  failed: 'NOT WORKING',
+  checking: 'CHECKING',
+  unknown: 'UNKNOWN',
+};
 
-  const badgeText = badge ?? defaultBadges[state] ?? String(state).toUpperCase();
+// The colour class of the badge (green / red / blue / amber).
+const BADGE_CLASS = {
+  working: 'connected',
+  failed: 'disconnected',
+  checking: 'checking',
+  unknown: 'unknown',
+};
+
+export default function ConnectionCard({ title, state, badge, description, action, children }) {
+  const badgeText = badge ?? BADGE_TEXT[state] ?? String(state).toUpperCase();
+  const badgeColour = BADGE_CLASS[state] ?? 'unknown';
 
   return (
-    <article className={`card conn-card conn-${state}`}>
-      <div className="conn-head">
-        <h2>{title}</h2>
-        <span className={`conn-badge conn-badge-${state}`} role="status" aria-live="polite">
-          <span className="conn-dot" aria-hidden="true" />
-          {badgeText}
-        </span>
-      </div>
+    <article className={`card check-row check-${state}`}>
+      <div className="check-main">
+        <div className="check-head">
+          <h2>{title}</h2>
+          <span className={`conn-badge conn-badge-${badgeColour}`} role="status" aria-live="polite">
+            <span className="conn-dot" aria-hidden="true" />
+            {badgeText}
+          </span>
+        </div>
 
-      <p className="muted conn-desc">{description}</p>
+        {description ? <p className="muted conn-desc">{description}</p> : null}
+
+        {action}
+      </div>
 
       {children ? <dl className="conn-details">{children}</dl> : null}
     </article>

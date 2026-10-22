@@ -217,29 +217,54 @@ code {
   opacity: 0.85;
 }
 
-/* ---------- Connection status dashboard ---------- */
+/* ---------- Connection status page ---------- */
 
-.status-grid {
+.check-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 1rem;
 }
 
-.conn-card {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
+.check-row {
+  display: grid;
+  grid-template-columns: minmax(280px, 1.1fr) minmax(240px, 1fr);
+  gap: 1rem 1.75rem;
+  align-items: start;
+  border-left: 5px solid var(--color-border);
 }
 
-.conn-head {
+.check-row.check-working {
+  border-left-color: var(--color-success);
+}
+
+.check-row.check-failed {
+  border-left-color: var(--color-danger);
+}
+
+.check-row.check-checking {
+  border-left-color: #0369a1;
+}
+
+.check-row.check-unknown {
+  border-left-color: #b45309;
+}
+
+.check-main {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.65rem;
+}
+
+.check-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.6rem;
   flex-wrap: wrap;
+  width: 100%;
 }
 
-.conn-head h2 {
+.check-head h2 {
   margin: 0;
   font-size: 1.05rem;
 }
@@ -470,5 +495,9 @@ code {
 
   .detail-list dt {
     min-width: 0;
+  }
+
+  .check-row {
+    grid-template-columns: 1fr;
   }
 }

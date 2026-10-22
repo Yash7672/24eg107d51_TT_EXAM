@@ -1,127 +1,143 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { API_BASE_URL, API_BASE_URL_CONFIGURED, healthApi } from '../api/api.js';
 import ConnectionCard from '../components/ConnectionCard.jsx';
 import ErrorAlert from '../components/ErrorAlert.jsx';
-import LoadingSpinner from '../components/LoadingSpinner.jsx';
 
 /** Moment the JavaScript of this page started - used for the uptime counter. */
 const PAGE_LOADED_AT = Date.now();
 
 /**
- * Connection Status Dashboard.
+ * Connection Status page with three buttons.
  *
- * It shows three separate connections:
- *   1. the React website itself (checked in the browser),
- *   2. the Spring Boot backend (checked with a real GET /api/health call),
- *   3. the Aiven MySQL database (taken from the answer of the backend).
+ *   1. "Check website"  - checks that this React page is really running
+ *                         (JavaScript executed, timers work).
+ *   2. "Check backend"  - real GET /api/health call through the Axios client.
+ *   3. "Check database" - the same real call, but only the database result
+ *                         of the answer is used.
  *
- * The browser never talks to MySQL directly - the database state is only the
+ * Every check runs automatically when the page is opened or refreshed, so the
+ * page always shows WORKING / NOT WORKING without any interaction.
+ *
+ * The browser never talks to MySQL directly. The database state is only the
  * value that the backend reports after its own real database check.
  */
 export default function StatusDashboard() {
-  const [state, setState] = useState('checking');
+  const [website, setWebsite] = useState('checking');
+  const [backend, setBackend] = useState('checking');
+  const [database, setDatabase] = useState('checking');
   const [health, setHealth] = useState(null);
   const [error, setError] = useState('');
   const [checkedAt, setCheckedAt] = useState(null);
-  const [checks, setChecks] = useState(0);
-  const [latencyMs, setLatencyMs] = useState(null);
   const [uptime, setUptime] = useState(0);
+  const [lastCheckMs, setLastCheckMs] = useState(null);
+  const timerWorks = useRef(false);
 
-  const loadHealth = useCallback(async () => {
-    setState('checking');
-    setError('');
+  // --- check 1: the website itself -----------------------------------------
+  const checkWebsite = useCallback(() => {
+    const pageLoaded = typeof document !== 'undefined' && document.readyState !== 'loading';
+    setWebsite(pageLoaded && timerWorks.current ? 'working' : 'checking');
+  }, []);
+
+  // --- check 2 and 3: the backend API (and the database it reports) ---------
+  const fetchHealth = useCallback(async () => {
     const startedAt = performance.now();
-
     try {
       const response = await healthApi.check();
       setHealth(response.data);
-      setLatencyMs(Math.round(performance.now() - startedAt));
+      setLastCheckMs(Math.round(performance.now() - startedAt));
+      setError('');
       setCheckedAt(new Date());
-      setChecks((count) => count + 1);
-      setState('connected');
+      return { ok: true, data: response.data };
     } catch (err) {
       setHealth(null);
-      setLatencyMs(null);
+      setLastCheckMs(null);
       setError(err.message);
       setCheckedAt(new Date());
-      setChecks((count) => count + 1);
-      setState('disconnected');
+      return { ok: false, data: null };
     }
   }, []);
 
-  useEffect(() => {
-    loadHealth();
-  }, [loadHealth]);
+  const checkBackend = useCallback(async () => {
+    setBackend('checking');
+    const result = await fetchHealth();
+    if (result.ok) {
+      setBackend('working');
+      setDatabase(result.data?.database === 'UP' ? 'working' : result.data?.database === 'DOWN' ? 'failed' : 'unknown');
+    } else {
+      setBackend('failed');
+      setDatabase('unknown');
+    }
+  }, [fetchHealth]);
 
-  // Uptime of this page - it proves that the frontend code is really running.
+  const checkDatabase = useCallback(async () => {
+    setDatabase('checking');
+    const result = await fetchHealth();
+    if (!result.ok) {
+      setBackend('failed');
+      setDatabase('unknown');
+      return;
+    }
+    setBackend('working');
+    setDatabase(result.data?.database === 'UP' ? 'working' : result.data?.database === 'DOWN' ? 'failed' : 'unknown');
+  }, [fetchHealth]);
+
+  // --- run every check automatically on load and on every refresh ----------
   useEffect(() => {
-    const timer = setInterval(() => {
+    // A running timer is the proof that the JavaScript of this page works.
+    const ticker = setInterval(() => {
+      timerWorks.current = true;
       setUptime(Math.floor((Date.now() - PAGE_LOADED_AT) / 1000));
+      // The first tick confirms that the browser timers run -> the page works.
+      setWebsite((state) => {
+        if (state !== 'checking') return state;
+        const pageLoaded = typeof document !== 'undefined' && document.readyState !== 'loading';
+        return pageLoaded ? 'working' : state;
+      });
     }, 1000);
-    return () => clearInterval(timer);
-  }, []);
+    checkWebsite();
+    checkBackend();
+    return () => clearInterval(ticker);
+  }, [checkWebsite, checkBackend]);
 
-  const frontendState = typeof document !== 'undefined' && document.readyState !== 'loading' ? 'connected' : 'checking';
-
-  // The database state is only known when the backend answered. If the
-  // backend is unreachable the database state is "unknown", never "UP".
-  const databaseReported = health?.database ?? null;
-  const databaseState =
-    state !== 'connected' ? 'unknown' : databaseReported === 'UP' ? 'connected' : databaseReported === 'DOWN' ? 'disconnected' : 'unknown';
-
-  const databaseBadge =
-    databaseState === 'connected'
-      ? 'CONNECTED'
-      : databaseState === 'disconnected'
-        ? 'DISCONNECTED'
-        : databaseState === 'checking'
-          ? 'CHECKING'
-          : 'UNKNOWN';
+  const buttonLabel = (state, name) => (state === 'checking' ? 'Checking...' : name);
 
   return (
     <>
       <section className="hero">
-        <h1>Connection Status Dashboard</h1>
+        <h1>Connection Status</h1>
         <p>
-          Every value on this page comes from a real check. The frontend is checked in the browser,
-          the backend is checked with a <code>GET /api/health</code> call and the database state is
-          the answer that the backend gives after its own database check.
+          Three real checks - the website in your browser, the backend API on Render and the
+          Aiven MySQL database. Every check runs again automatically when you refresh the page.
         </p>
-        <div className="toolbar">
-          <div className="muted">
-            {checkedAt
-              ? `Last checked: ${checkedAt.toLocaleString()} (${checks} check${checks === 1 ? '' : 's'})`
-              : 'Waiting for the first check...'}
-          </div>
-          <button type="button" className="btn btn-primary" onClick={loadHealth} disabled={state === 'checking'}>
-            {state === 'checking' ? 'Checking...' : 'Refresh'}
-          </button>
-        </div>
+        <p className="muted">
+          Last check: {checkedAt ? checkedAt.toLocaleString() : 'waiting for the first check...'}
+        </p>
       </section>
 
-      {state === 'checking' ? <LoadingSpinner label="Contacting the backend..." /> : null}
-
-      <ErrorAlert message={error} onRetry={loadHealth} />
+      {error ? <ErrorAlert message={error} onRetry={checkBackend} /> : null}
 
       {!API_BASE_URL_CONFIGURED ? (
         <div className="alert alert-warning" role="alert">
           <div className="alert-body">
             <strong>VITE_API_BASE_URL is not set in this build.</strong>
             <p>
-              The frontend therefore calls the local fallback <code>{API_BASE_URL}</code>. On Netlify set
-              the environment variable <code>VITE_API_BASE_URL</code> to the Render URL (without a trailing
-              slash) and rebuild the site.
+              The frontend therefore calls the local fallback <code>{API_BASE_URL}</code>. Set the
+              variable in Netlify to the Render URL and rebuild the site.
             </p>
           </div>
         </div>
       ) : null}
 
-      <section className="status-grid">
+      <section className="check-list">
         <ConnectionCard
-          title="React website"
-          description="This page is running in your browser - the JavaScript bundle was loaded and executed."
-          state={frontendState}
-          badge="CONNECTED"
+          title="1. React website"
+          state={website}
+          description="Checks that this page is really running: the JavaScript bundle was executed and the browser timers are running."
+          action={
+            <button type="button" className="btn btn-primary" onClick={checkWebsite} disabled={website === 'checking'}>
+              {buttonLabel(website, 'Check website')}
+            </button>
+          }
         >
           <div>
             <dt>Page loaded at</dt>
@@ -129,7 +145,9 @@ export default function StatusDashboard() {
           </div>
           <div>
             <dt>Uptime</dt>
-            <dd>{uptime} second{uptime === 1 ? '' : 's'}</dd>
+            <dd>
+              {uptime} second{uptime === 1 ? '' : 's'}
+            </dd>
           </div>
           <div>
             <dt>Page address</dt>
@@ -142,10 +160,23 @@ export default function StatusDashboard() {
         </ConnectionCard>
 
         <ConnectionCard
-          title="Spring Boot backend"
-          description="Checked with a real request to GET /api/health through the Axios client."
-          state={state}
+          title="2. Spring Boot backend"
+          state={backend}
+          description={
+            <>
+              Real request to <code>GET /api/health</code> through the Axios client.
+            </>
+          }
+          action={
+            <button type="button" className="btn btn-primary" onClick={checkBackend} disabled={backend === 'checking'}>
+              {buttonLabel(backend, 'Check backend')}
+            </button>
+          }
         >
+          <div>
+            <dt>Endpoint</dt>
+            <dd>{`${API_BASE_URL}/api/health`}</dd>
+          </div>
           <div>
             <dt>Application</dt>
             <dd>{health?.application ?? '-'}</dd>
@@ -156,11 +187,7 @@ export default function StatusDashboard() {
           </div>
           <div>
             <dt>Round trip</dt>
-            <dd>{latencyMs === null ? '-' : `${latencyMs} ms`}</dd>
-          </div>
-          <div>
-            <dt>Endpoint</dt>
-            <dd>{`${API_BASE_URL}/api/health`}</dd>
+            <dd>{lastCheckMs === null ? '-' : `${lastCheckMs} ms`}</dd>
           </div>
           <div>
             <dt>Message</dt>
@@ -169,14 +196,18 @@ export default function StatusDashboard() {
         </ConnectionCard>
 
         <ConnectionCard
-          title="Aiven MySQL database"
-          description="The value reported by the backend in the database field of /api/health."
-          state={databaseState}
-          badge={databaseBadge}
+          title="3. Aiven MySQL database"
+          state={database}
+          description="The value that the backend reports in the database field of the health response - the browser never connects to MySQL itself."
+          action={
+            <button type="button" className="btn btn-primary" onClick={checkDatabase} disabled={database === 'checking'}>
+              {buttonLabel(database, 'Check database')}
+            </button>
+          }
         >
           <div>
             <dt>Reported status</dt>
-            <dd>{databaseReported ?? 'unknown (backend did not answer)'}</dd>
+            <dd>{health?.database ?? 'unknown (the backend did not answer)'}</dd>
           </div>
           <div>
             <dt>Database check</dt>
@@ -192,7 +223,7 @@ export default function StatusDashboard() {
           </div>
           <div>
             <dt>Source</dt>
-            <dd>{API_BASE_URL}/api/health</dd>
+            <dd>{`${API_BASE_URL}/api/health`}</dd>
           </div>
         </ConnectionCard>
       </section>
