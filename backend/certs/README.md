@@ -5,16 +5,43 @@
 #  to validate the certificate of the Aiven server - encryption alone
 #  (sslMode=REQUIRED) does NOT check who you are talking to.
 #
-#  How to get the certificate:
-#    1. Open your Aiven project  ->  MySQL service  ->  Connection
-#    2. Download the file "ca.crt"
-#    3. Save it in THIS folder as "ca.crt"
+#  The file "ca.crt" in this folder IS the CA certificate of your Aiven
+#  project, so the backend can verify the Aiven server certificate.
 #
-#  The certificate is PUBLIC (it is a public CA certificate, not a password),
-#  so it is safe to commit it to Git. The Docker build imports it into the
-#  truststore at /app/certs/truststore.p12 automatically.
+#  Certificate details (check them yourself with):
+#      keytool -printcert -file backend/certs/ca.crt
 #
-#  The file is optional: without it the backend still starts, but the health
-#  endpoint reports the database as DOWN because the certificate of Aiven
-#  cannot be verified.
+#      Owner  : CN=<project-id> Project CA
+#      Issuer : CN=<project-id> Project CA   (self signed)
+#      CA     : true, PathLen:0
+#      Valid  : 2026-01-22  ->  2036-10-19
+#      SHA256 : 50:8D:53:A8:9D:3B:38:97:05:D9:21:43:8E:D5:72:DB:A3:5F:BE:6F:4A:4C:E4:ED:50:4F:DD:7B:00:0B:CA:7D
+#
+#  The Docker build imports this file automatically into the truststore
+#  /app/certs/truststore.p12, and the backend uses that truststore with
+#  sslMode=VERIFY_IDENTITY.
+#
+#  THE FILE IS PUBLIC
+#  ------------------
+#  A CA certificate contains no password and no private key, so it is safe to
+#  commit it to Git. The Docker build on Render needs it, therefore it has to
+#  be part of the repository.
+#
+#  WHEN YOU HAVE TO REPLACE IT
+#  ---------------------------
+#  Aiven rotates the project CA certificate from time to time, and another
+#  Aiven project uses a different certificate. Download the current one and
+#  overwrite "ca.crt" in this folder:
+#
+#      1. Aiven dashboard  ->  your project  ->  MySQL service  ->  Overview
+#      2. "Connection information"  ->  "CA Certificate"  ->  Download
+#      3. Save the downloaded file here as "ca.crt"
+#
+#  With the Aiven CLI the same file is downloaded with:
+#      avn service user-creds-download --username <your-aiven-user> <service>
+#
+#  After replacing it: rebuild the Docker image and push the new "ca.crt".
+#  Symptom of an outdated certificate: the backend starts, but
+#  GET /api/health reports "database": "DOWN" and the log shows
+#  "PKIX path building failed".
 # ===========================================================================

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { API_BASE_URL, healthApi } from '../api/api.js';
 import BackendStatus from '../components/BackendStatus.jsx';
 import ErrorAlert from '../components/ErrorAlert.jsx';
@@ -41,6 +42,11 @@ export default function Home() {
           API, and the backend stores its data in MySQL (Aiven).
         </p>
         <BackendStatus status={status} health={health} />
+        <p className="hero-links">
+          <Link className="btn btn-primary" to="/status">
+            Open the connection status dashboard
+          </Link>
+        </p>
       </section>
 
       {status === 'loading' ? <LoadingSpinner label="Contacting the backend..." /> : null}

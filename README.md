@@ -11,6 +11,19 @@ is already prepared here, so you only write the code that the question asks for.
 > `<like_this>` = a **placeholder**. Replace it with a real value before deploying.
 > Real secrets (database password) are **never** written in this file or in the code.
 
+### Current deployment of this repository
+
+| Part              | Value                                                            | State |
+| ----------------- | ---------------------------------------------------------------- | ----- |
+| GitHub repository | `https://github.com/Yash7672/24eg107d51_TT_EXAM` (branch `main`)  | connected |
+| Backend on Render | `https://lab-exam-backend-yhmk.onrender.com`                      | live |
+| Frontend on Netlify | `https://24eg107d51ttexamm.netlify.app`                         | live |
+| Database on Aiven | `mysql-6f49d52-ttexam.c.aivencloud.com:23292/defaultdb`          | running |
+| Aiven CA certificate | `backend/certs/ca.crt` (public, committed)                    | installed |
+
+The database password lives **only** in the Render environment variables — it is never
+written into this repository.
+
 ---
 
 ## 1. Technology stack
@@ -40,7 +53,7 @@ is already prepared here, so you only write the code that the question asks for.
 │   ├── .mvn/wrapper/maven-wrapper.properties
 │   ├── certs/
 │   │   ├── README.md                          # how to add the Aiven CA certificate
-│   │   └── ca.crt                             # (optional) Aiven public CA certificate
+│   │   └── ca.crt                             # Aiven project CA certificate (public)
 │   ├── src/main/
 │   │   ├── java/com/labexam/app/
 │   │   │   ├── LabExamApplication.java        # entry point
@@ -71,12 +84,14 @@ is already prepared here, so you only write the code that the question asks for.
 │   │   ├── api/api.js                         # Axios client (reads VITE_API_BASE_URL)
 │   │   ├── components/                        # small reusable components
 │   │   │   ├── BackendStatus.jsx
+│   │   │   ├── ConnectionCard.jsx             # one card of the status dashboard
 │   │   │   ├── ErrorAlert.jsx
 │   │   │   ├── Layout.jsx
 │   │   │   └── LoadingSpinner.jsx
 │   │   ├── pages/
 │   │   │   ├── Home.jsx                       # welcome page + backend status
-│   │   │   └── NotFound.jsx
+│   │   │   ├── NotFound.jsx
+│   │   │   └── StatusDashboard.jsx            # connection status dashboard
 │   │   ├── App.jsx                            # routes
 │   │   ├── main.jsx                           # React root
 │   │   └── index.css                          # plain CSS, no framework
@@ -221,12 +236,15 @@ java -jar target/lab-exam-backend-0.0.1-SNAPSHOT.jar
 | ------------------- | ------------------------------------ | ---------------------- |
 | `VITE_API_BASE_URL` | Base URL of the backend API          | `http://localhost:8080` |
 
-Production value (fill in **after** the backend is on Render):
+Production value (the value that is set in Netlify for this repository):
 
 ```
-VITE_API_BASE_URL=https://<your-backend-service>.onrender.com
+VITE_API_BASE_URL=https://lab-exam-backend-yhmk.onrender.com
 ```
 
+> The value is **baked into the JavaScript bundle at build time**. A change in Netlify
+> only takes effect after a new build. A local `frontend/.env` never influences Netlify.
+>
 > Only variables starting with `VITE_` reach the browser. **Never** put the database
 > password here — everything in the browser is readable by the user.
 
@@ -242,7 +260,8 @@ VITE_API_BASE_URL=https://<your-backend-service>.onrender.com
 | `SPRING_DATASOURCE_TRUSTSTORE_URL`   | path of the truststore with the Aiven CA certificate   | `file:/app/certs/truststore.p12`            |
 | `SPRING_DATASOURCE_TRUSTSTORE_TYPE`  | truststore format                                      | `PKCS12`                                    |
 | `SPRING_DATASOURCE_TRUSTSTORE_PASSWORD` | password of the truststore (public certificates only) | `changeit`                                  |
-| `APP_CORS_ALLOWED_ORIGINS`           | comma separated frontend origins allowed to call us   | `http://localhost:5173`                     |
+| `APP_CORS_ALLOWED_ORIGINS`           | comma separated frontend origins allowed to call us   | `https://24eg107d51ttexamm.netlify.app` |
+| `APP_CORS_ALLOWED_ORIGIN_PATTERNS`   | optional origins with wildcards (local network only)    | *(empty in production)*        |
 | `PORT`                               | port the server listens on (Render sets it)            | `8080`                                      |
 
 Spring Boot reads `SPRING_DATASOURCE_URL` automatically and it always wins over the
@@ -268,9 +287,14 @@ Never use `create-drop` or `drop` on a real database.
    **user** and **password**. (If the password is hidden, use *Reset password* to set a
    new one — this is your own password, put it into the environment variables, never
    into a file that is committed.)
-3. Download the file **ca.crt** from the same tab and save it as
-   `backend/certs/ca.crt`. It is a **public** CA certificate, not a secret, so it is
-   safe to commit. The Docker build adds it to a truststore automatically.
+3. The CA certificate of your Aiven project is **already in the repository**:
+   `backend/certs/ca.crt` (it is a *public* certificate — no password, no private
+   key — so it is safe to commit, and the Docker build imports it into the
+   truststore automatically).
+   If you use a different Aiven project, or if the connection suddenly fails with
+   `PKIX path building failed` (Aiven rotates the certificate from time to time),
+   download the current **ca.crt** from *Connection information* and overwrite
+   `backend/certs/ca.crt`. See `backend/certs/README.md` for the details.
 4. Build the JDBC URL. The SSL part is configured with the environment variables
    of section 6.2, so the URL only needs the host, the port and the database name:
 
@@ -290,8 +314,8 @@ jdbc:mysql://<aiven-host>:<aiven-port>/<database>?serverTimezone=UTC&allowPublic
 Create the same truststore on your machine (one time):
 
 ```bash
-# the path must point to the Aiven ca.crt you downloaded
-keytool -importcert -noprompt -alias aiven-ca -file ca.crt \
+# the path must point to the Aiven ca.crt in backend/certs
+keytool -importcert -noprompt -alias aiven-ca -file backend/certs/ca.crt \
         -keystore truststore.p12 -storetype PKCS12 -storepass changeit
 ```
 
@@ -330,6 +354,22 @@ The image is built in two stages: Maven + Java 17 builds the jar, a small
 `eclipse-temurin:17-jre-alpine` image runs it as the non-root user `spring` on the port
 given by `PORT` (default `8080`).
 
+The Aiven CA certificate from `backend/certs/ca.crt` is imported into
+`/app/certs/truststore.p12` during the build. You can check that it worked:
+
+```bash
+docker run --rm --entrypoint sh lab-exam-backend -c \
+  "keytool -list -keystore /app/certs/truststore.p12 -storepass changeit -storetype PKCS12 | grep aiven-ca"
+```
+
+If the certificate is missing, the build only prints a warning — it never fails. The
+backend then starts normally and the health endpoint reports `"database": "DOWN"`.
+
+> The backend stays alive even when the database is unreachable
+> (`initialization-fail-timeout=-1`). That is why the status dashboard can show
+> *"backend CONNECTED / database DISCONNECTED"* instead of the whole service
+> disappearing.
+
 ---
 
 ## 9. Deploy the backend to Render (manual steps)
@@ -351,18 +391,20 @@ given by `PORT` (default `8080`).
 3. Open **Environment** and add the variables (mark the password as *Secret*):
 
    ```
-   SPRING_DATASOURCE_URL      = jdbc:mysql://<aiven-host>:<aiven-port>/<database>?serverTimezone=UTC&allowPublicKeyRetrieval=true
-   SPRING_DATASOURCE_USERNAME = <aiven-username>
-   SPRING_DATASOURCE_PASSWORD = <aiven-password>
+   SPRING_DATASOURCE_URL      = jdbc:mysql://mysql-6f49d52-ttexam.c.aivencloud.com:23292/defaultdb?serverTimezone=UTC&allowPublicKeyRetrieval=true
+   SPRING_DATASOURCE_USERNAME = avnadmin
+   SPRING_DATASOURCE_PASSWORD = <aiven-password>          <- Secret
    SPRING_JPA_HIBERNATE_DDL_AUTO = update
-   APP_CORS_ALLOWED_ORIGINS   = http://localhost:5173
+   APP_CORS_ALLOWED_ORIGINS   = https://24eg107d51ttexamm.netlify.app
    ```
 
    The SSL settings (`SPRING_DATASOURCE_SSL_MODE`, `SPRING_DATASOURCE_TRUSTSTORE_*`)
    already have working defaults inside the Docker image, so they are usually not
    needed here.
 
-   (`APP_CORS_ALLOWED_ORIGINS` is updated with the Netlify URL in step 10.3.)
+   > `APP_CORS_ALLOWED_ORIGINS` must contain the **exact** origin of the frontend
+   > (without a trailing slash). A trailing slash is removed automatically, a
+   > wildcard (`*`) is not needed and should not be used.
 
 4. Click **Create Web Service**. Render builds the Docker image and starts the service.
    The first build takes a few minutes because Maven downloads the dependencies.
@@ -392,15 +434,19 @@ given by `PORT` (default `8080`).
 3. Open **Site configuration → Environment variables** and add:
 
    ```
-   VITE_API_BASE_URL = https://<your-backend-service>.onrender.com
+   VITE_API_BASE_URL = https://lab-exam-backend-yhmk.onrender.com
    ```
+
+   > The value is read **only** at build time. After adding it, start a new deploy
+   > (*Deploys → Trigger deploy → Clear build cache*) so that the new bundle is built
+   > with the correct URL.
 
 4. Click **Deploy site**. Netlify runs `npm install && npm run build` in `frontend/`
    and publishes `frontend/dist`.
 5. The SPA redirect (`/*` → `/index.html`) is configured in `netlify.toml` and in
    `frontend/public/_redirects`, so refreshing a client side route keeps working.
-6. Copy the Netlify URL (e.g. `https://<your-site>.netlify.app`) and add it to the
-   backend on Render: `APP_CORS_ALLOWED_ORIGINS=https://<your-site>.netlify.app`
+6. The Netlify URL is `https://24eg107d51ttexamm.netlify.app`. It is already allowed
+   on Render: `APP_CORS_ALLOWED_ORIGINS=https://24eg107d51ttexamm.netlify.app`
    (a Render restart is triggered automatically).
 
 > Rebuild the frontend after you change `VITE_API_BASE_URL` — the value is baked into
@@ -415,7 +461,7 @@ given by `PORT` (default `8080`).
 curl http://localhost:8080/api/health
 
 # deployed backend
-curl https://<your-backend-service>.onrender.com/api/health
+curl https://lab-exam-backend-yhmk.onrender.com/api/health
 ```
 
 Answer when everything is fine:
@@ -425,8 +471,9 @@ Answer when everything is fine:
   "application": "lab-exam-backend",
   "status": "UP",
   "database": "UP",
-  "message": "Application and database are reachable.",
-  "timestamp": "2026-01-31T10:15:30Z"
+  "message": "The application is running and the database answered in 118 ms.",
+  "timestamp": "2026-01-31T10:15:30Z",
+  "databaseLatencyMs": 118
 }
 ```
 
@@ -434,7 +481,30 @@ The endpoint always returns HTTP `200` as long as the application itself is runn
 The database state is reported in the `"database"` field, so a short database outage
 does not crash the service.
 
+* `"status"` describes **the application** — it is `UP` as long as Spring Boot answers.
+* `"database"` is the result of a **real** database check (`Connection.isValid()`).
+  It is `UP` only when MySQL really answered, `DOWN` otherwise.
+* `"databaseLatencyMs"` is the time the database check needed.
+
 You can also test it in the browser: open `http://localhost:8080/api/health`.
+
+### 11.1 Connection status dashboard
+
+The frontend has a page that shows the three connections separately:
+<https://24eg107d51ttexamm.netlify.app/status> (local: `/status`).
+
+| Card                | What it shows                                                            |
+| ------------------- | ------------------------------------------------------------------------ |
+| **React website**   | the page is running in the browser (load time, uptime, page address)      |
+| **Spring Boot backend** | green **CONNECTED** / red **DISCONNECTED**, taken from a real `GET /api/health` call through the Axios client (with the round trip time) |
+| **Aiven MySQL database** | green **CONNECTED** / red **DISCONNECTED**, taken from the `"database"` field of the health response |
+
+* The raw JSON of the health endpoint is shown below the cards, the page has a
+  **Refresh** button, a loading spinner and a readable error message.
+* The browser **never** talks to MySQL. If the backend cannot be reached, the database
+  card shows amber **UNKNOWN** — the state is not guessed.
+* If `VITE_API_BASE_URL` is missing in the build, the page shows a yellow warning
+  that names the URL which is actually called.
 
 ---
 
@@ -447,6 +517,7 @@ You can also test it in the browser: open `http://localhost:8080/api/health`.
 | `CORS policy: No 'Access-Control-Allow-Origin'`       | frontend origin missing in `APP_CORS_ALLOWED_ORIGINS`       | add the exact frontend URL (with `https://`) and redeploy the backend  |
 | `404` on `http://localhost:8080/api/health`            | wrong path / old version of the backend running            | the path is exactly `/api/health`                                     |
 | Health says `database: DOWN`, log says `PKIX path building failed` | Aiven `ca.crt` is missing or not in the truststore | download `ca.crt` into `backend/certs/` and rebuild the Docker image  |
+| `database: DOWN` on Render, but the same code works locally | the deployed image was built **before** `backend/certs/ca.crt` was committed | commit and push `backend/certs/ca.crt`, then let Render rebuild the image |
 | Log says `Unable to load truststore`                     | `SPRING_DATASOURCE_TRUSTSTORE_URL` points to a file that does not exist | local run: create the truststore (section 7) and point the variable to it |
 | `sslMode` in the JDBC URL has no effect                  | the SSL variables are applied as connection properties and always win | use `SPRING_DATASOURCE_SSL_MODE` instead of putting `sslMode` into the URL |
 | `Access denied for user`                              | wrong Aiven user / password                                | reset the password in Aiven and update the environment variables      |
@@ -457,6 +528,7 @@ You can also test it in the browser: open `http://localhost:8080/api/health`.
 | Render: build fails in Docker                          | wrong root directory / Dockerfile path                     | root directory = repository root, Dockerfile path = `backend/Dockerfile` |
 | `failed to read dockerfile: open Dockerfile`            | `docker build` was run without `-f`                      | `docker build -t lab-exam-backend -f backend/Dockerfile .` from the repository root |
 | App connects to `localhost:3306` instead of Aiven | `SPRING_DATASOURCE_URL` was not set              | set the variable (Render → Environment, or in your shell)             |
+| Dashboard on Netlify shows the backend as **DISCONNECTED**, but `curl` on the Render URL works | `VITE_API_BASE_URL` is missing in Netlify (the bundle then calls `http://localhost:8080`) | add the variable in Netlify and rebuild the site |
 
 ---
 

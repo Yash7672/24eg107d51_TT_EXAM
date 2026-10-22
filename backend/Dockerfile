@@ -35,16 +35,21 @@ RUN mvn -B -ntp clean package -DskipTests
 
 # Build the truststore: start from the public CA certificates of the JDK and
 # add the Aiven certificate when it is available.
+# A missing or broken ca.crt must never break the build, it only prints a
+# warning - the health endpoint then reports "database: DOWN".
 RUN keytool -importkeystore -noprompt \
         -srckeystore "$JAVA_HOME/lib/security/cacerts" -srcstoretype JKS -srcstorepass changeit \
         -destkeystore /build/certs/truststore.p12 -deststoretype PKCS12 -deststorepass "$TRUSTSTORE_PASSWORD" \
- && if [ -f /build/certs/ca.crt ]; then \
-        keytool -importcert -noprompt -alias aiven-ca -file /build/certs/ca.crt \
-          -keystore /build/certs/truststore.p12 -storetype PKCS12 -storepass "$TRUSTSTORE_PASSWORD" \
-        && echo "==> Aiven CA certificate imported into truststore.p12"; \
+ && if [ -f /build/certs/ca.crt ] && grep -q -- "-----BEGIN CERTIFICATE-----" /build/certs/ca.crt; then \
+        if keytool -importcert -noprompt -alias aiven-ca -file /build/certs/ca.crt \
+             -keystore /build/certs/truststore.p12 -storetype PKCS12 -storepass "$TRUSTSTORE_PASSWORD"; then \
+            echo "==> Aiven CA certificate imported into truststore.p12"; \
+        else \
+            echo "==> WARNING: backend/certs/ca.crt could not be imported."; \
+        fi; \
     else \
-        echo "==> WARNING: backend/certs/ca.crt not found."; \
-        echo "==> The Aiven server certificate cannot be verified until you add it."; \
+        echo "==> WARNING: backend/certs/ca.crt is missing or is not a PEM certificate."; \
+        echo "==> Download it from the Aiven dashboard and put it in backend/certs/ca.crt."; \
     fi
 
 # ---------- Stage 2: runtime ----------

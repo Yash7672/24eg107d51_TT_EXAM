@@ -6,8 +6,17 @@ import axios from 'axios';
  * The base URL comes from the environment variable VITE_API_BASE_URL, so the
  * same code works locally (http://localhost:8080) and in production
  * (the Render URL) without changing a single line of code.
+ *
+ * The URL must contain the origin only, for example
+ * https://my-backend.onrender.com - the endpoints below already start with
+ * "/api", so writing "/api" twice would produce a wrong URL.
  */
-export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080').replace(/\/+$/, '');
+const configuredBaseUrl = (import.meta.env.VITE_API_BASE_URL || '').trim();
+
+export const API_BASE_URL = (configuredBaseUrl || 'http://localhost:8080').replace(/\/+$/, '');
+
+/** True when VITE_API_BASE_URL is really set in the build. */
+export const API_BASE_URL_CONFIGURED = configuredBaseUrl.length > 0;
 
 export const api = axios.create({
   baseURL: API_BASE_URL,

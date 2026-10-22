@@ -17,6 +17,7 @@ export default function Layout({ children }) {
           </Link>
           <nav className="app-nav">
             <Link to="/">Home</Link>
+            <Link to="/status">Status</Link>
           </nav>
         </div>
       </header>
