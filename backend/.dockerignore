@@ -1,0 +1,30 @@
+# ===========================================================================
+#  Convenience copy of the repository root .dockerignore.
+#
+#  IMPORTANT: Docker only reads a .dockerignore file from the ROOT of the
+#  build context. The effective file for this project is therefore the
+#  ".dockerignore" in the repository root, because the build context is the
+#  repository root:
+#
+#      docker build -t lab-exam-backend .
+#
+#  This file exists next to the Dockerfile for tools and editors that look
+#  for it there. Keep both files in sync.
+# ===========================================================================
+
+.git
+.gitignore
+**/.git
+**/.idea
+**/.vscode
+**/node_modules
+**/dist
+**/build
+**/target
+**/*.log
+**/.env
+**/.env.*
+!**/.env.example
+frontend
+README.md
+netlify.toml

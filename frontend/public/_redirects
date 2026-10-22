@@ -1,0 +1,5 @@
+/* Netlify redirect for the single page application.
+   Every route that is not a real file falls back to index.html,
+   so that client side routing (react-router) keeps working on a refresh. */
+
+/*    /index.html   200

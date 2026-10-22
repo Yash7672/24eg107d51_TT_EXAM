@@ -1,0 +1,49 @@
+# ===========================================================================
+#  Repository root .dockerignore
+#
+#  Docker reads this file because the build context is the repository root:
+#      docker build -t lab-exam-backend .
+#
+#  Keeping the context small makes the build faster and stops secrets
+#  (like a local .env file) from ending up inside the image.
+# ===========================================================================
+
+# Git
+.git
+.gitignore
+**/.git
+
+# Node / frontend
+**/node_modules
+**/dist
+**/build
+**/.npm
+
+# Java / Maven
+**/target
+**/*.jar
+**/*.war
+
+# Secrets - never bake these into an image
+**/.env
+**/.env.*
+!**/.env.example
+**/certs/*.p12
+**/certs/*.jks
+**/certs/*.pem
+**/certs/*.key
+
+# Editors and OS files
+**/.idea
+**/.vscode
+**/*.iml
+**/.DS_Store
+**/Thumbs.db
+**/*.log
+
+# The frontend is not part of the backend image
+frontend
+
+# Docs
+README.md
+netlify.toml
