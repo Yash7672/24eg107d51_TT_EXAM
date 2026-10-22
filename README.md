@@ -488,21 +488,22 @@ does not crash the service.
 
 You can also test it in the browser: open `http://localhost:8080/api/health`.
 
-### 11.1 Connection status dashboard
+### 11.1 Connection status page
 
-The frontend has a page that shows the three connections separately:
+The frontend has a page with three buttons that shows the three connections separately:
 <https://24eg107d51ttexamm.netlify.app/status> (local: `/status`).
 
-| Card                | What it shows                                                            |
-| ------------------- | ------------------------------------------------------------------------ |
-| **React website**   | the page is running in the browser (load time, uptime, page address)      |
-| **Spring Boot backend** | green **CONNECTED** / red **DISCONNECTED**, taken from a real `GET /api/health` call through the Axios client (with the round trip time) |
-| **Aiven MySQL database** | green **CONNECTED** / red **DISCONNECTED**, taken from the `"database"` field of the health response |
+| Row and button         | What it really does                                                      | Badge |
+| ---------------------- | ------------------------------------------------------------------------- | ----- |
+| **1. Check website**   | checks in the browser that the page is really running (JavaScript executed, timers work) | green **WORKING** / red **NOT WORKING** |
+| **2. Check backend**   | real `GET /api/health` call through the Axios client (with the round trip time) | green **WORKING** / red **NOT WORKING** |
+| **3. Check database**  | the same real call — only the `"database"` field of the answer is used    | green **WORKING** / red **NOT WORKING** |
 
-* The raw JSON of the health endpoint is shown below the cards, the page has a
-  **Refresh** button, a loading spinner and a readable error message.
+* Every check runs **automatically** when the page is opened or refreshed, so the page
+  always shows WORKING / NOT WORKING without any interaction.
+* The raw JSON of the health endpoint is shown below the rows.
 * The browser **never** talks to MySQL. If the backend cannot be reached, the database
-  card shows amber **UNKNOWN** — the state is not guessed.
+  row shows amber **UNKNOWN** — the state is not guessed.
 * If `VITE_API_BASE_URL` is missing in the build, the page shows a yellow warning
   that names the URL which is actually called.
 
