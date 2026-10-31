@@ -10,7 +10,7 @@ function SimpleBilling() {
   const [err, setErr] = useState("");
 
   useEffect(() => {
-    productApi.getProducts().then(res => {
+    productApi.list().then(res => {
       let data = res.data;
       if (data && data.data) data = data.data;
       setProducts(Array.isArray(data) ? data : []);
@@ -57,7 +57,7 @@ function SimpleBilling() {
         customerName: customerName.trim(),
         items: selected.map(p => ({ productId: p.id, quantity: qtyMap[p.id] || 1 }))
       };
-      let res = await billApi.calculateBill(req);
+      let res = await billApi.calculate(req);
       let b = res.data;
       if (b && b.data) b = b.data;
       setBill(b);
