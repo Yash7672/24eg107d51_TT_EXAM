@@ -16,7 +16,7 @@ export default function Layout({ children }) {
             </span>
           </Link>
           <nav className="app-nav">
-            <Link to="/">Home</Link>
+            <Link to="/">Billing</Link>
             <Link to="/status">Status</Link>
           </nav>
         </div>
