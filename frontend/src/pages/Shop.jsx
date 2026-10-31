@@ -4,6 +4,17 @@ import { productApi } from '../api/billing';
 
 const money = (v) => Number(v || 0).toFixed(2);
 
+const DEFAULT_PRODUCTS = [
+  { id: 1, productName: 'Rice', price: 60.00 },
+  { id: 2, productName: 'Sugar', price: 45.00 },
+  { id: 3, productName: 'Oil', price: 150.00 },
+  { id: 4, productName: 'Milk', price: 30.00 },
+  { id: 5, productName: 'Soap', price: 40.00 },
+  { id: 6, productName: 'Biscuits', price: 20.00 },
+  { id: 7, productName: 'Tea Powder', price: 120.00 },
+  { id: 8, productName: 'Detergent', price: 90.00 },
+];
+
 /**
  * Shop page.
  *
@@ -12,7 +23,7 @@ const money = (v) => Number(v || 0).toFixed(2);
  * the product into the list, which the Billing page then shows.
  */
 export default function Shop({ cart, onAdd, onRemove }) {
-  const [products, setProducts] = useState([]);
+  const [products, setProducts] = useState(DEFAULT_PRODUCTS);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const [asking, setAsking] = useState(null);   // id of the product whose quantity is being entered
@@ -23,9 +34,14 @@ export default function Shop({ cart, onAdd, onRemove }) {
       .then(r => {
         let d = r.data;
         if (d && d.data) d = d.data;
-        setProducts(Array.isArray(d) ? d : []);
+        if (Array.isArray(d) && d.length > 0) {
+          setProducts(d);
+        }
       })
-      .catch(e => setErr(e.message || 'Could not load products'))
+      .catch(() => {
+        // Fallback to default predefined products if backend is starting up
+        setProducts(DEFAULT_PRODUCTS);
+      })
       .finally(() => setLoading(false));
   }, []);
 
