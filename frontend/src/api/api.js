@@ -49,10 +49,6 @@ api.interceptors.response.use(
   },
 );
 
-/**
- * Endpoints of the starter. Add your own API groups here during the exam,
- * for example:  export const productApi = { list: () => api.get('/api/products') };
- */
 export const healthApi = {
   check: () => api.get('/api/health'),
 };

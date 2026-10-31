@@ -1,11 +1,11 @@
 import { Route, Routes } from 'react-router-dom';
-import SimpleBilling from './pages/SimpleBilling.jsx';
+import ShopApp from './pages/ShopApp.jsx';
 
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<SimpleBilling />} />
-      <Route path="*" element={<SimpleBilling />} />
+      <Route path="/" element={<ShopApp />} />
+      <Route path="*" element={<ShopApp />} />
     </Routes>
   );
 }
