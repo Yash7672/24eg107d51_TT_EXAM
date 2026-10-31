@@ -6,13 +6,13 @@ export default function Layout({ children }) {
       <aside className="dash-sidebar">
         <div className="dash-brand">SMART BILLING SYSTEM</div>
         <nav className="dash-nav">
-          <Link to="/">Billing Dashboard</Link>
-          <Link to="/status">Status</Link>
+          <Link to="/">Dashboard</Link>
+          <Link to="/billing">Billing</Link>
         </nav>
       </aside>
       <div className="dash-main">
         <header className="dash-topbar">
-          <div>Billing Dashboard</div>
+          <div>SMART BILLING SYSTEM</div>
           <div>{new Date().toLocaleString()}</div>
         </header>
         <main className="dash-content">{children}</main>
