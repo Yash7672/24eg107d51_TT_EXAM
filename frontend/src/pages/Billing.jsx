@@ -1,195 +1,189 @@
-import { useEffect, useState } from 'react';
-import { productApi, billApi } from '../api/billing';
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { billApi } from '../api/billing';
 
-export default function Billing() {
-  const [customerName, setCustomerName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [products, setProducts] = useState([]);
-  const [items, setItems] = useState([]);
+const money = (v) => Number(v || 0).toFixed(2);
+const fmtDate = (v) => (v ? new Date(v).toLocaleString() : '');
+
+/**
+ * Billing page.
+ *
+ * Shows every product that was added on the Shop page with its quantity and
+ * price and, at the bottom, the bill calculation:
+ *
+ *   Bill Calculation
+ *   Subtotal: ₹0.00
+ *   Discount: 0% (₹0.00)
+ *   Final Amount: ₹0.00
+ *   Generate Bill   Print Bill
+ *
+ * The discount is 10% and only applies when the subtotal is greater than ₹1,000.
+ */
+export default function Billing({ cart, customer, setCustomer, onQuantity, onRemove, onClear }) {
   const [bill, setBill] = useState(null);
   const [err, setErr] = useState('');
   const [msg, setMsg] = useState('');
-  const [search, setSearch] = useState('');
-  const billNo = 'SB-' + Date.now().toString().slice(-8);
 
-  useEffect(() => {
-    productApi.list()
-      .then(res => {
-        let data = res.data;
-        if (data && data.data) data = data.data;
-        if (Array.isArray(data)) setProducts(data);
-        else setProducts([]);
-      })
-      .catch(e => setErr('Load products failed'));
-  }, []);
-
-  const addItem = (p) => {
-    const exists = items.find(i => i.productId === p.id);
-    if (exists) {
-      setItems(items.map(i => i.productId === p.id ? { ...i, quantity: i.quantity + 1 } : i));
-    } else {
-      setItems([...items, { productId: p.id, productName: p.productName, price: p.price, quantity: 1 }]);
-    }
-    setBill(null);
-    setErr('');
-    setMsg('Item added');
-    setTimeout(() => setMsg(''), 900);
-  };
-
-  const changeQty = (id, qty) => {
-    const q = Number(qty);
-    if (q <= 0) {
-      setItems(items.filter(i => i.productId !== id));
-    } else {
-      setItems(items.map(i => i.productId === id ? { ...i, quantity: q } : i));
-    }
-    setBill(null);
-    setErr('');
-  };
-
-  const removeItem = (id) => {
-    setItems(items.filter(i => i.productId !== id));
-    setBill(null);
-    setErr('');
-  };
-
-  const subtotalCalc = items.reduce((s, i) => s + Number(i.price) * Number(i.quantity), 0);
-  const discountCalc = subtotalCalc > 1000 ? subtotalCalc * 0.1 : 0;
-  const finalCalc = subtotalCalc - discountCalc;
+  const subtotal = cart.reduce((s, i) => s + Number(i.price) * Number(i.quantity), 0);
+  const discountPct = subtotal > 1000 ? 10 : 0;
+  const discount = (subtotal * discountPct) / 100;
+  const finalAmount = subtotal - discount;
 
   const generate = async () => {
     setErr('');
     setMsg('');
-    if (!customerName.trim()) {
-      setErr('Enter customer name');
-      return;
-    }
-    if (items.length === 0) {
-      setErr('Add at least one product');
-      return;
-    }
+    if (!customer.name.trim()) { setErr('Enter customer name'); return null; }
+    if (cart.length === 0) { setErr('Add at least one product from the Shop page'); return null; }
     try {
-      const payload = {
-        customerName,
-        items: items.map(i => ({ productId: i.productId, quantity: i.quantity }))
-      };
-      const res = await billApi.calculate(payload);
+      const res = await billApi.create({
+        customerName: customer.name.trim(),
+        phone: customer.phone.trim(),
+        items: cart.map(i => ({ productId: i.productId, quantity: Number(i.quantity) }))
+      });
       let b = res.data;
       if (b && b.data) b = b.data;
       setBill(b);
-      setMsg('Done');
-      setTimeout(() => setMsg(''), 1000);
+      setMsg('Bill saved');
+      return b;
     } catch (e) {
-      setBill(null);
-      setErr('Error');
+      setErr(e.message || 'Could not generate the bill');
+      return null;
     }
   };
 
-  const clearAll = () => {
-    setCustomerName('');
-    setPhone('');
-    setItems([]);
+  // Printing an empty page would be useless, so the receipt is generated
+  // first when Print is pressed before Generate Bill.
+  const print = async () => {
+    const b = bill || await generate();
+    if (!b) return;
+    setTimeout(() => window.print(), 60);
+  };
+
+  const changeQty = (id, value) => {
+    const n = parseInt(value, 10);
+    onQuantity(id, Number.isFinite(n) && n > 0 ? n : 1);
     setBill(null);
     setErr('');
-    setMsg('');
   };
-
-  const printBill = () => {
-    window.print();
-  };
-
-  const filtered = products.filter(p => (p.productName || '').toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <div className="sb2-wrap">
-      <div className="sb2-title">SMART BILLING SYSTEM</div>
-      <div className="sb2-sub">Billing Management Dashboard</div>
-
-      <div className="sb2-cards">
-        <div className="sb2-card"><div>Total Products</div><div className="sb2-v">{products.length}</div></div>
-        <div className="sb2-card"><div>Bill Items</div><div className="sb2-v">{items.length}</div></div>
-        <div className="sb2-card"><div>Subtotal</div><div className="sb2-v">₹{subtotalCalc.toFixed(2)}</div></div>
-        <div className="sb2-card"><div>Discount</div><div className="sb2-v">₹{discountCalc.toFixed(2)}</div></div>
-        <div className="sb2-card sb2-card-g"><div>Final Payable</div><div className="sb2-v">₹{finalCalc.toFixed(2)}</div></div>
+    <div className="page">
+      <div className="page-head">
+        <div>
+          <h1>Billing</h1>
+          <p className="muted">Check the items, then generate and print the bill.</p>
+        </div>
+        <Link className="page-link" to="/">← Back to Shop</Link>
       </div>
 
       {msg && <div className="sb2-ok">{msg}</div>}
       {err && <div className="sb2-bad">{err}</div>}
 
-      <div className="sb2-grid">
-        <div className="sb2-panel">
-          <div className="sb2-ph">Customer Details</div>
-          <input className="sb2-inp" value={customerName} onChange={e => { setCustomerName(e.target.value); setBill(null); }} placeholder="Customer Name" />
-          <input className="sb2-inp" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone Number (optional)" />
-          <div className="sb2-meta">Bill No: {billNo} | {new Date().toLocaleString()}</div>
+      <div className="sb2-panel">
+        <div className="sb2-ph">Customer Details</div>
+        <div className="bill-fields">
+          <input
+            className="sb2-inp bill-name"
+            placeholder="Customer Name"
+            value={customer.name}
+            onChange={e => { setCustomer({ ...customer, name: e.target.value }); setBill(null); }}
+          />
+          <input
+            className="sb2-inp bill-phone"
+            placeholder="Phone (optional)"
+            value={customer.phone}
+            onChange={e => { setCustomer({ ...customer, phone: e.target.value }); setBill(null); }}
+          />
         </div>
+      </div>
 
-        <div className="sb2-panel">
-          <div className="sb2-ph">Products</div>
-          <input className="sb2-inp" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search product" />
-          <div className="sb2-list">
-            {filtered.map(p => (
-              <div className="sb2-row" key={p.id}>
-                <div><div className="sb2-n">{p.productName}</div><div className="sb2-p">₹{p.price}</div></div>
-                <button className="sb2-b sb2-b1" onClick={() => addItem(p)}>Add to Bill</button>
-              </div>
-            ))}
+      <div className="sb2-panel">
+        <div className="sb2-ph">Items</div>
+        {cart.length === 0 ? (
+          <div className="sb2-m">
+            No items yet. <Link to="/">Add products from the Shop page</Link>.
           </div>
-        </div>
+        ) : (
+          <table className="sb2-t">
+            <thead>
+              <tr><th>Item</th><th>Price</th><th>Quantity</th><th>Amount</th><th></th></tr>
+            </thead>
+            <tbody>
+              {cart.map(i => (
+                <tr key={i.productId}>
+                  <td>{i.productName}</td>
+                  <td>₹{money(i.price)}</td>
+                  <td>
+                    <input
+                      className="sb2-q"
+                      type="number"
+                      min="1"
+                      value={i.quantity}
+                      onChange={e => changeQty(i.productId, e.target.value)}
+                    />
+                  </td>
+                  <td>₹{money(Number(i.price) * Number(i.quantity))}</td>
+                  <td><button className="sb2-b sb2-b2" onClick={() => { setBill(null); onRemove(i.productId); }}>Remove</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
 
-        <div className="sb2-panel sb2-wide">
-          <div className="sb2-ph">Billing</div>
-          {items.length === 0 ? <div className="sb2-m">No products added</div> : (
-            <table className="sb2-t">
-              <thead><tr><th>Product</th><th>Price</th><th>Qty</th><th>Item Total</th><th></th></tr></thead>
-              <tbody>
-                {items.map(i => (
-                  <tr key={i.productId}>
-                    <td>{i.productName}</td>
-                    <td>₹{i.price}</td>
-                    <td><input className="sb2-q" type="number" min="1" value={i.quantity} onChange={e => changeQty(i.productId, e.target.value)} /></td>
-                    <td>₹{(Number(i.price)*Number(i.quantity)).toFixed(2)}</td>
-                    <td><button className="sb2-b sb2-b2" onClick={() => removeItem(i.productId)}>Remove</button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+        <div className="bill-calc">
+          <div className="sb2-ph">Bill Calculation</div>
           <div className="sb2-sum">
-            <div>Subtotal: ₹{subtotalCalc.toFixed(2)}</div>
-            <div>Discount ({subtotalCalc>1000?'10%':'0%'}): ₹{discountCalc.toFixed(2)}</div>
-            <div className="sb2-f">Final Amount: ₹{finalCalc.toFixed(2)}</div>
+            <div>Subtotal: ₹{money(subtotal)}</div>
+            <div>Discount: {discountPct}% (₹{money(discount)})</div>
+            <div className="sb2-f">Final Amount: ₹{money(finalAmount)}</div>
           </div>
           <div className="sb2-act">
             <button className="sb2-b sb2-b3" onClick={generate}>Generate Bill</button>
-            <button className="sb2-b sb2-b1" onClick={printBill}>Print Bill</button>
-            <button className="sb2-b sb2-b4" onClick={clearAll}>Clear Bill</button>
+            <button className="sb2-b sb2-b1" onClick={print}>Print Bill</button>
+            <button
+              className="sb2-b sb2-b4"
+              onClick={() => { onClear(); setBill(null); setErr(''); setMsg(''); }}
+            >
+              Clear
+            </button>
           </div>
         </div>
       </div>
 
       {bill && (
-        <div className="sb2-rec" id="print-rec">
+        <div className="sb2-rec" id="print-bill">
           <div className="sb2-rec-h">
             <div>
-              <div className="sb2-rec-t">SMART BILLING SYSTEM</div>
-              <div>Shop Billing Receipt</div>
+              <div className="sb2-rec-t">SMART SHOP</div>
+              <div>Bill Receipt</div>
             </div>
-            <div className="sb2-rec-m"><div>Bill No: {billNo}</div><div>{new Date().toLocaleString()}</div></div>
+            <div className="sb2-rec-m">
+              <div>Bill No: #{bill.id || '-'}</div>
+              <div>{fmtDate(bill.billDate)}</div>
+            </div>
           </div>
-          <div className="sb2-rec-c">Customer: {bill.customerName}{phone?' | Phone: '+phone:''}</div>
+          <div className="sb2-rec-c">
+            Customer: {bill.customerName}{bill.phone ? ' | Phone: ' + bill.phone : ''}
+          </div>
           <table className="sb2-t sb2-rec-t2">
-            <thead><tr><th>Product</th><th>Price</th><th>Qty</th><th>Item Total</th></tr></thead>
+            <thead>
+              <tr><th>Item</th><th>Price</th><th>Quantity</th><th>Amount</th></tr>
+            </thead>
             <tbody>
-              {(bill.items||[]).map((it,idx)=>(
-                <tr key={idx}><td>{it.productName}</td><td>₹{it.price}</td><td>{it.quantity}</td><td>₹{it.itemTotal}</td></tr>
+              {(bill.items || []).map((it, idx) => (
+                <tr key={idx}>
+                  <td>{it.productName}</td>
+                  <td>₹{money(it.price)}</td>
+                  <td>{it.quantity}</td>
+                  <td>₹{money(it.itemTotal)}</td>
+                </tr>
               ))}
             </tbody>
           </table>
           <div className="sb2-rec-s">
-            <div>Subtotal: ₹{bill.subtotal}</div>
-            <div>Discount ({bill.discountPercentage}%): ₹{bill.discountAmount}</div>
-            <div className="sb2-rec-f">Final Amount: ₹{bill.finalAmount}</div>
+            <div>Subtotal: ₹{money(bill.subtotal)}</div>
+            <div>Discount ({bill.discountPercentage}%): ₹{money(bill.discountAmount)}</div>
+            <div className="sb2-rec-f">Final Amount: ₹{money(bill.finalAmount)}</div>
           </div>
         </div>
       )}

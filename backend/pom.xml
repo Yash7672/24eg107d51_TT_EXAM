@@ -50,11 +50,11 @@
             <scope>runtime</scope>
         </dependency>
 
-        <!-- In-memory database, used only by the automated tests -->
+        <!-- In-memory database, used by automated tests and local development profile -->
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
-            <scope>test</scope>
+            <scope>runtime</scope>
         </dependency>
 
         <dependency>
