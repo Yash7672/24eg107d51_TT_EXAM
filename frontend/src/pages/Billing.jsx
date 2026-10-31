@@ -15,10 +15,12 @@ export default function Billing() {
   useEffect(() => {
     productApi.list()
       .then(res => {
-        const data = res.data?.data || res.data || [];
-        setProducts(Array.isArray(data) ? data : []);
+        let data = res.data;
+        if (data && data.data) data = data.data;
+        if (Array.isArray(data)) setProducts(data);
+        else setProducts([]);
       })
-      .catch(e => setErr(e?.message || 'Failed to load products'));
+      .catch(e => setErr('Load products failed'));
   }, []);
 
   const addItem = (p) => {
@@ -72,12 +74,14 @@ export default function Billing() {
         items: items.map(i => ({ productId: i.productId, quantity: i.quantity }))
       };
       const res = await billApi.calculate(payload);
-      setBill(res.data?.data || res.data);
-      setMsg('Bill generated successfully');
-      setTimeout(() => setMsg(''), 1200);
+      let b = res.data;
+      if (b && b.data) b = b.data;
+      setBill(b);
+      setMsg('Done');
+      setTimeout(() => setMsg(''), 1000);
     } catch (e) {
       setBill(null);
-      setErr(e?.message || 'Error generating bill');
+      setErr('Error');
     }
   };
 
