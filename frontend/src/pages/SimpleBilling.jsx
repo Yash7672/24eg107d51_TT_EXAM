@@ -13,7 +13,9 @@ export default function SimpleBilling() {
       let d = r.data;
       if (d && d.data) d = d.data;
       setProducts(Array.isArray(d) ? d : []);
-    }).catch(() => setErr('No products'));
+    }).catch((e) => {
+      setErr('Cannot load products');
+    });
   }, []);
 
   const add = (p) => {
