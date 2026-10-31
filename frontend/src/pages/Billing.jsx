@@ -3,10 +3,14 @@ import { productApi, billApi } from '../api/billing';
 
 export default function Billing() {
   const [customerName, setCustomerName] = useState('');
+  const [phone, setPhone] = useState('');
   const [products, setProducts] = useState([]);
   const [items, setItems] = useState([]);
   const [bill, setBill] = useState(null);
   const [err, setErr] = useState('');
+  const [msg, setMsg] = useState('');
+  const [search, setSearch] = useState('');
+  const billNo = 'BILL-' + Date.now().toString().slice(-6);
 
   useEffect(() => {
     productApi.list()
@@ -26,6 +30,8 @@ export default function Billing() {
     }
     setBill(null);
     setErr('');
+    setMsg('Added to bill');
+    setTimeout(() => setMsg(''), 1000);
   };
 
   const changeQty = (id, qty) => {
@@ -45,8 +51,13 @@ export default function Billing() {
     setErr('');
   };
 
+  const subtotalCalc = items.reduce((s, i) => s + Number(i.price) * Number(i.quantity), 0);
+  const discountCalc = subtotalCalc > 1000 ? subtotalCalc * 0.1 : 0;
+  const finalCalc = subtotalCalc - discountCalc;
+
   const generate = async () => {
     setErr('');
+    setMsg('');
     try {
       const payload = {
         customerName,
@@ -54,6 +65,8 @@ export default function Billing() {
       };
       const res = await billApi.calculate(payload);
       setBill(res.data?.data || res.data);
+      setMsg('Bill generated');
+      setTimeout(() => setMsg(''), 1200);
     } catch (e) {
       setBill(null);
       setErr(e?.message || 'Error');
@@ -62,57 +75,68 @@ export default function Billing() {
 
   const clearAll = () => {
     setCustomerName('');
+    setPhone('');
     setItems([]);
     setBill(null);
     setErr('');
+    setMsg('');
   };
 
   const printBill = () => {
     window.print();
   };
 
-  const dateStr = new Date().toLocaleString();
+  const filtered = products.filter(p => (p.productName || '').toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <div className="bill-wrap">
-      <div className="bill-header">
-        <div>
-          <h1>SMART SHOP</h1>
-          <div>Simple Billing System</div>
-        </div>
-        <div>{dateStr}</div>
+    <div className="sb-wrap">
+      <div className="sb-cards">
+        <div className="sb-card"><div className="sb-card-t">Total Products</div><div className="sb-card-v">{products.length}</div></div>
+        <div className="sb-card"><div className="sb-card-t">Current Bill Items</div><div className="sb-card-v">{items.length}</div></div>
+        <div className="sb-card"><div className="sb-card-t">Subtotal</div><div className="sb-card-v">₹{subtotalCalc.toFixed(2)}</div></div>
+        <div className="sb-card"><div className="sb-card-t">Discount</div><div className="sb-card-v">₹{discountCalc.toFixed(2)}</div></div>
+        <div className="sb-card sb-card-green"><div className="sb-card-t">Final Payable</div><div className="sb-card-v">₹{finalCalc.toFixed(2)}</div></div>
       </div>
 
-      <div className="bill-grid">
-        <div className="bill-card">
-          <h2>Customer</h2>
-          <input className="bill-input" value={customerName} onChange={e => { setCustomerName(e.target.value); setBill(null); }} placeholder="Customer name" />
+      {msg && <div className="sb-msg">{msg}</div>}
+      {err && <div className="sb-err">{err}</div>}
+
+      <div className="sb-grid">
+        <div className="sb-panel">
+          <div className="sb-panel-h">Customer Details</div>
+          <div className="sb-row">
+            <input className="sb-input" value={customerName} onChange={e => { setCustomerName(e.target.value); setBill(null); }} placeholder="Customer name" />
+            <input className="sb-input" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone number" />
+          </div>
+          <div className="sb-info">Bill No: {billNo} | Date: {new Date().toLocaleString()}</div>
         </div>
 
-        <div className="bill-card">
-          <h2>Products</h2>
-          <div className="prod-list">
-            {products.map(p => (
-              <div className="prod-row" key={p.id}>
+        <div className="sb-panel">
+          <div className="sb-panel-h">Product Management</div>
+          <input className="sb-input" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products" />
+          <div className="sb-prod">
+            {filtered.map(p => (
+              <div className="sb-prod-row" key={p.id}>
                 <div>
-                  <div>{p.productName}</div>
-                  <div className="muted">₹{p.price}</div>
+                  <div className="sb-prod-n">{p.productName}</div>
+                  <div className="sb-prod-p">₹{p.price}</div>
                 </div>
-                <button className="btn btn-primary" onClick={() => addItem(p)}>Add</button>
+                <button className="sb-btn sb-btn-blue" onClick={() => addItem(p)}>Add</button>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="bill-card">
-          <h2>Bill Items</h2>
-          {items.length === 0 ? <div className="muted">No items</div> : (
-            <table className="bill-table">
+        <div className="sb-panel sb-panel-wide">
+          <div className="sb-panel-h">Billing Section</div>
+          {items.length === 0 ? <div className="sb-muted">No items added</div> : (
+            <table className="sb-table">
               <thead>
                 <tr>
                   <th>Product</th>
                   <th>Price</th>
                   <th>Qty</th>
+                  <th>Item Total</th>
                   <th>Action</th>
                 </tr>
               </thead>
@@ -121,33 +145,43 @@ export default function Billing() {
                   <tr key={i.productId}>
                     <td>{i.productName}</td>
                     <td>₹{i.price}</td>
-                    <td><input className="qty-input" type="number" min="1" value={i.quantity} onChange={e => changeQty(i.productId, e.target.value)} /></td>
-                    <td><button className="btn btn-secondary" onClick={() => removeItem(i.productId)}>Remove</button></td>
+                    <td><input className="sb-qty" type="number" min="1" value={i.quantity} onChange={e => changeQty(i.productId, e.target.value)} /></td>
+                    <td>₹{(Number(i.price)*Number(i.quantity)).toFixed(2)}</td>
+                    <td><button className="sb-btn sb-btn-red" onClick={() => removeItem(i.productId)}>Remove</button></td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
-          <div className="bill-actions">
-            <button className="btn btn-primary" onClick={generate}>Generate Bill</button>
-            <button className="btn btn-secondary" onClick={clearAll}>Clear Bill</button>
-            <button className="btn btn-secondary" onClick={printBill}>Print Bill</button>
+          <div className="sb-sum">
+            <div>Subtotal: ₹{subtotalCalc.toFixed(2)}</div>
+            <div>Discount: {subtotalCalc > 1000 ? '10%' : '0%'} (₹{discountCalc.toFixed(2)})</div>
+            <div className="sb-sum-final">Final Amount: ₹{finalCalc.toFixed(2)}</div>
           </div>
-          {err && <div className="bill-err">{err}</div>}
+          <div className="sb-actions">
+            <button className="sb-btn sb-btn-green" onClick={generate}>Generate Bill</button>
+            <button className="sb-btn sb-btn-blue" onClick={printBill}>Print Bill</button>
+            <button className="sb-btn sb-btn-gray" onClick={clearAll}>Clear Bill</button>
+          </div>
         </div>
       </div>
 
       {bill && (
-        <div className="bill-card receipt" id="receipt">
-          <div className="receipt-head">
+        <div className="sb-receipt" id="sb-receipt">
+          <div className="sb-receipt-h">
             <div>
-              <h2>SMART SHOP</h2>
-              <div>Simple Billing System</div>
+              <div className="sb-receipt-title">SMART BILLING SYSTEM</div>
+              <div>Billing Receipt</div>
             </div>
-            <div>{dateStr}</div>
+            <div className="sb-receipt-meta">
+              <div>Bill No: {billNo}</div>
+              <div>Date: {new Date().toLocaleString()}</div>
+            </div>
           </div>
-          <div>Customer: {bill.customerName}</div>
-          <table className="bill-table">
+          <div className="sb-receipt-cust">
+            <div>Customer: {bill.customerName}{phone ? ' | Phone: ' + phone : ''}</div>
+          </div>
+          <table className="sb-table sb-receipt-table">
             <thead>
               <tr>
                 <th>Product</th>
@@ -167,10 +201,10 @@ export default function Billing() {
               ))}
             </tbody>
           </table>
-          <div className="receipt-sum">
+          <div className="sb-receipt-sum">
             <div>Subtotal: ₹{bill.subtotal}</div>
             <div>Discount ({bill.discountPercentage}%): ₹{bill.discountAmount}</div>
-            <div className="receipt-final">Final Amount: ₹{bill.finalAmount}</div>
+            <div className="sb-receipt-final">Final Amount: ₹{bill.finalAmount}</div>
           </div>
         </div>
       )}
